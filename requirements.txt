@@ -1,0 +1,9 @@
+streamlit
+torch
+torchvision
+ultralytics
+tensorflow
+opencv-python
+pillow
+pandas
+tqdm

@@ -62,11 +62,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the meter classifier model
 @st.cache_resource
-def load_meter_classifier(model_path):
-    model = models.resnet18()
-    num_features = model.fc.in_features
-    model.fc = torch.nn.Linear(num_features, 2)  # Assuming 2 classes: 'meter' and 'no_meter'
-    model.load_state_dict(torch.load(model_path, map_location=device))
+def load_screen_quality_classifier(model_path):
+    model = CNNBinaryClassifier()
+    # Use the original torch.load
+    from torch.serialization import load as original_torch_load
+    state_dict = original_torch_load(model_path, map_location=device)
+    model.load_state_dict(state_dict)
     model = model.to(device)
     model.eval()
     return model

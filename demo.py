@@ -87,8 +87,10 @@ def load_ocr_interpreter(model_path):
 
 # Load the screen quality classifier model
 @st.cache_resource
-def load_screen_quality_classifier(model_path):
-    model = CNNBinaryClassifier()
+def load_meter_classifier(model_path):
+    model = models.resnet18()
+    num_features = model.fc.in_features
+    model.fc = torch.nn.Linear(num_features, 2)  # Assuming 2 classes: 'meter' and 'no_meter'
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.to(device)
     model.eval()

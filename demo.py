@@ -62,15 +62,39 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the meter classifier model
 @st.cache_resource
+# def load_screen_quality_classifier(model_path):
+#     model = CNNBinaryClassifier()
+#     # Use the original torch.load
+#     from torch.serialization import load as original_torch_load
+#     state_dict = original_torch_load(model_path, map_location=device)
+#     model.load_state_dict(state_dict)
+#     model = model.to(device)
+#     model.eval()
+#     return model
+# Load the screen quality classifier model using ResNet-18
+@st.cache_resource
 def load_screen_quality_classifier(model_path):
-    model = CNNBinaryClassifier()
-    # Use the original torch.load
-    from torch.serialization import load as original_torch_load
-    state_dict = original_torch_load(model_path, map_location=device)
-    model.load_state_dict(state_dict)
-    model = model.to(device)
-    model.eval()
-    return model
+    try:
+        # Initialize a pre-trained ResNet-18 model
+        model = models.resnet18(pretrained=False)
+        
+        # Modify the final fully connected layer for binary classification
+        num_features = model.fc.in_features
+        model.fc = nn.Linear(num_features, 2)  # Assuming 2 classes: 'ng' and 'ok'
+        
+        # Load the state dictionary
+        state_dict = torch.load(model_path, map_location=device)
+        model.load_state_dict(state_dict)
+        
+        # Move the model to the appropriate device and set to evaluation mode
+        model = model.to(device)
+        model.eval()
+        
+        return model
+    except Exception as e:
+        st.error(f"An error occurred while loading the screen quality classifier: {e}")
+        raise
+
 
 # Load the YOLO model
 @st.cache_resource

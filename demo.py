@@ -387,7 +387,7 @@ def main():
                 # Perform Screen Quality Classification
                 # Convert cropped_image to PIL Image for consistency
                 cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
-                class_names_quality = ['ng', 'ok']  # Ensure correct order
+                class_names_quality = ['ok', 'ng']  # Ensure correct order
                 predicted_class_quality = perform_classification(cropped_pil, screen_quality_classifier, screen_clf_transform, class_names_quality)
                 with cols[4]:
                     st.write("### Screen Quality Classification")

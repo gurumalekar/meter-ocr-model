@@ -1,6 +1,4 @@
 import os
-import torch
-import torch.nn as nn
 import cv2
 import numpy as np
 from torchvision import transforms, models
@@ -8,6 +6,8 @@ from PIL import Image
 from ultralytics import YOLO
 import tensorflow as tf
 import string
+import torch
+import torch.nn as nn
 import streamlit as st  # type: ignore
 
 # Define constants

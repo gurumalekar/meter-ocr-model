@@ -21,7 +21,7 @@ models_folder = 'model'  # Ensure this folder contains the required models
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
 yolo_model_path = os.path.join(models_folder, 'yolo-screen-obb-grayscale.pt')
 ocr_model_path = os.path.join(models_folder, 'model_float16.tflite')
-screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale_cnn.pth')  # New classifier
+screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale.pth')  # New classifier
 
 # CNN Model Definition
 class CNNBinaryClassifier(nn.Module):

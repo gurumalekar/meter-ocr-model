@@ -1,4 +1,6 @@
 import os
+import torch
+import torch.nn as nn
 import cv2
 import numpy as np
 from torchvision import transforms, models
@@ -6,48 +8,57 @@ from PIL import Image
 from ultralytics import YOLO
 import tensorflow as tf
 import string
-import torch
-import torch.nn as nn
+from io import BytesIO
 import streamlit as st
 
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer,
+    Image as ReportLabImage
+)
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.enums import TA_CENTER
+
+# Define constants
 alphabet = string.digits + string.ascii_lowercase + '.'
 blank_index = len(alphabet)
 models_folder = 'model'
+
+# Model paths
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
 yolo_model_path = os.path.join(models_folder, 'yolo-screen-obb-grayscale.pt')
 ocr_model_path = os.path.join(models_folder, 'model_float16.tflite')
 screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale.pth')
 
-class CNNBinaryClassifier(nn.Module):
-    def __init__(self):
-        super(CNNBinaryClassifier, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(128 * 36 * 112, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 2)
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
-
+# Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# Load the meter classifier model
+@st.cache_resource
+def load_meter_classifier(model_path):
+    model = models.resnet18()
+    num_features = model.fc.in_features
+    model.fc = torch.nn.Linear(num_features, 2)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model = model.to(device)
+    model.eval()
+    return model
+
+# Load the YOLO model
+@st.cache_resource
+def load_yolo_model(model_path):
+    model = YOLO(model_path).to(device)
+    return model
+
+# Load the OCR interpreter
+@st.cache_resource
+def load_ocr_interpreter(model_path):
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+# Load the screen quality classifier model
 @st.cache_resource
 def load_screen_quality_classifier(model_path):
     try:
@@ -63,33 +74,14 @@ def load_screen_quality_classifier(model_path):
         st.error(f"An error occurred while loading the screen quality classifier: {e}")
         raise
 
-@st.cache_resource
-def load_yolo_model(model_path):
-    model = YOLO(model_path).to(device)
-    return model
-
-@st.cache_resource
-def load_ocr_interpreter(model_path):
-    interpreter = tf.lite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
-
-@st.cache_resource
-def load_meter_classifier(model_path):
-    model = models.resnet18()
-    num_features = model.fc.in_features
-    model.fc = torch.nn.Linear(num_features, 2)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model = model.to(device)
-    model.eval()
-    return model
-
+# Define transformations for the classifiers
 common_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])
 ])
+
 screen_clf_transform = transforms.Compose([
     transforms.Resize((288, 896)),
     transforms.Grayscale(num_output_channels=1),
@@ -97,11 +89,6 @@ screen_clf_transform = transforms.Compose([
     transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
-
-def preprocess(img):
-    grayimg = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    resized = cv2.resize(grayimg, (200, 31))    
-    return resized
 
 def prepare_input(image_path):
     input_data = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -153,6 +140,11 @@ def perform_yolo_detection(image, yolo_model, device='cpu'):
         box = boxes[max_conf_idx].cpu().numpy().reshape((4, 2))
         confidence = confs[max_conf_idx].cpu().item()
         return box, confidence
+
+def preprocess(img):
+    grayimg = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    resized = cv2.resize(grayimg, (200, 31))    
+    return resized
 
 def crop_image(image, box):
     pts = box.astype(np.float32)
@@ -209,25 +201,144 @@ def draw_bounding_box(image, box, color=(255, 0, 255), thickness=11):
         cv2.line(image, pt1, pt2, color, thickness)
     return image
 
+def calculate_bill(units_consumed):
+    fixed_charge = 100  # Rs.
+    total_amount = fixed_charge
+    units_remaining = units_consumed
+    slabs = [
+        (30, 1.90),   # First 30 units
+        (45, 3.00),   # Next 45 units (units 31-75)
+        (50, 4.50),   # Next 50 units (units 76-125)
+        (100, 6.00),  # Next 100 units (units 126-225)
+        (25, 8.75)    # Last 25 units (units 226-250)
+    ]
+
+    for slab_units, rate in slabs:
+        if units_remaining > 0:
+            units_in_slab = min(units_remaining, slab_units)
+            total_amount += units_in_slab * rate
+            units_remaining -= units_in_slab
+        else:
+            break
+
+    if units_remaining > 0:
+        rate = slabs[-1][1]
+        total_amount += units_remaining * rate
+
+    return total_amount
+
+def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, cropped_images):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+
+    styles = getSampleStyleSheet()
+    center_style = ParagraphStyle(name='center', alignment=TA_CENTER, fontSize=18, fontName="Courier-Oblique")
+    center_font = ParagraphStyle(name='center', alignment=TA_CENTER, fontName='Helvetica')
+    normal_text = ParagraphStyle(
+        name='normal_text',
+        alignment=0,
+        fontName='Times-Roman',
+        fontSize=18
+    )
+    normal_text_2 = ParagraphStyle(
+        name='normal_text',
+        alignment=0,
+        fontName='Times-Roman',
+        fontSize=12
+    )
+
+    # Add company logo
+    logo_path = 'company_logo.png'
+    if os.path.exists(logo_path):
+        logo = ReportLabImage(logo_path, width=1*inch, height=1*inch)
+        elements.append(logo)
+        elements.append(Spacer(1, 12))
+
+    # Add title
+    elements.append(Paragraph("Electricity Bill", center_font))
+    elements.append(Spacer(1, 12))
+
+    # Add images and readings
+    elements.append(Paragraph("Meter Reading Details", normal_text))
+    elements.append(Spacer(1, 12))
+
+    # Display uploaded image
+    if images:
+        for idx, (image, cropped_image) in enumerate(zip(images, cropped_images), start=1):
+            elements.append(Paragraph(f"Image {idx}", normal_text))
+            elements.append(Spacer(1, 12))
+
+            # Add cropped image
+            cropped_image_pil = Image.fromarray(cropped_image)
+            cropped_image_buffer = BytesIO()
+            cropped_image_pil.save(cropped_image_buffer, format='PNG')
+            cropped_image_buffer.seek(0)
+            reportlab_cropped_image = ReportLabImage(cropped_image_buffer, width=3*inch, height=1*inch)
+            elements.append(reportlab_cropped_image)
+            elements.append(Spacer(1, 12))
+
+            # Add reading
+            if idx == 1:
+                elements.append(Paragraph(f"Previous Reading: {previous_reading} kWh", normal_text_2))
+            elements.append(Paragraph(f"Current Reading: {current_reading} kWh", normal_text_2))
+            elements.append(Spacer(1, 12))
+
+    # Add calculations
+    elements.append(Paragraph("Bill Calculations:", styles['Heading1']))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Units Consumed = {current_reading} - {previous_reading} = {usage} kWh", center_style))
+    elements.append(Spacer(1, 24))
+    elements.append(Paragraph(f"Total Bill Amount: Rs. {bill_amount:.2f}", center_style))
+
+    # Build PDF
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+    return pdf
+
+# Streamlit App
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
-    st.title("📊 Meter OCR Application")
-    st.write("### Note that this is a demo and some models are lite versions of actual models. Performance may vary.")
+
+    # Header with logo and title
+    col1, col2 = st.columns([3, 8])
+    with col2:
+        st.write("# HackAP Hackathon: Power Distribution")
+        st.write("## Problem Statement 5: Electric Meter OCR Application")
+    with col1:
+        if os.path.exists('company_logo.png'):
+            st.image('company_logo.png', width=200)
+
+    # Load models
     with st.spinner("Loading models..."):
         meter_classifier = load_meter_classifier(meter_classifier_model_path)
         yolo_model = load_yolo_model(yolo_model_path)
         ocr_interpreter = load_ocr_interpreter(ocr_model_path)
         screen_quality_classifier = load_screen_quality_classifier(screen_quality_classifier_model_path)
+
     st.success("Models loaded successfully!")
-    uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg", "bmp", "gif"])
+
+    # File uploader
+    uploaded_file = st.file_uploader(
+        "Upload an image of your electric meter",
+        type=["png", "jpg", "jpeg", "bmp", "gif"]
+    )
+
     if uploaded_file is not None:
         st.header("Processing Image")
+
+        # Read image
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
+
+        # Display uploaded image
         cols = st.columns(5)
         with cols[0]:
             st.write("### Uploaded Image")
             st.image(image, caption='Uploaded Image', use_column_width=True)
+
+        # Meter Classification
         class_names_meter = ['meter', 'no_meter']
         predicted_class_meter = perform_classification(image, meter_classifier, common_transform, class_names_meter)
         with cols[1]:
@@ -236,12 +347,17 @@ def main():
                 st.success("Meter device is **visible** in the image.")
             else:
                 st.warning("Meter device might **not be visible** or multiple devices present.")
+
+        # YOLO Detection
         try:
             box, confidence = perform_yolo_detection(image_np, yolo_model)
+
             if box is not None:
                 with cols[2]:
                     st.write("### YOLO Detection")
                     st.write(f"**Detection Confidence:** {confidence:.2f}")
+
+                    # Draw bounding box on the image
                     image_with_box = image_np.copy()
                     image_with_box = draw_bounding_box(image_with_box, box)
                     st.image(image_with_box, caption='Image with Bounding Box', use_column_width=True)
@@ -249,28 +365,78 @@ def main():
                 st.warning("Meter screen unclear/not detected in the image.")
         except Exception as e:
             st.error(f"An error occurred during YOLO detection: {e}")
+
+        # Crop the detected area
         if box is not None:
             try:
                 cropped_image = crop_image(image_np, box)
+
                 with cols[3]:
                     st.write("### Cropped Meter Screen")
                     st.image(cropped_image, caption='Cropped Meter Screen', use_column_width=True)
+
+                # Screen Quality Classification
                 cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
                 class_names_quality = ['ok', 'ng']
-                predicted_class_quality = perform_classification(cropped_pil, screen_quality_classifier, screen_clf_transform, class_names_quality)
+                predicted_class_quality = perform_classification(
+                    cropped_pil,
+                    screen_quality_classifier,
+                    screen_clf_transform,
+                    class_names_quality
+                )
                 with cols[4]:
                     st.write("### Screen Quality Classification")
                     if predicted_class_quality == 'ok':
                         st.success("Screen quality is **OK**.")
                     else:
                         st.warning("Screen quality is **NG** (Not Good).")
-                with cols[2]:
-                    if predicted_class_quality == 'ok':
-                        ocr_result = perform_ocr(cropped_image, ocr_interpreter)
-                        st.write("# OCR Result:")
-                        st.write(f"## {ocr_result}")
-                    else:
-                        st.warning("OCR skipped due to poor screen quality.")
+
+                # Perform OCR if screen quality is OK
+                if predicted_class_quality == 'ok':
+                    ocr_result = perform_ocr(cropped_image, ocr_interpreter)
+                    st.write("## OCR Result:")
+                    st.write(f"### {ocr_result}")
+
+                    # Input for previous reading
+                    previous_reading = st.number_input(
+                        "Enter your previous meter reading (kWh):",
+                        min_value=0.0,
+                        step=1.0
+                    )
+
+                    if st.button("Calculate Bill"):
+                        if previous_reading > float(ocr_result):
+                            st.error("Current reading cannot be less than previous reading.")
+                        else:
+                            usage = float(ocr_result) - previous_reading
+                            bill_amount = calculate_bill(usage)
+
+                            st.write("## Bill Calculations:")
+                            st.write(f"Previous Reading: **{previous_reading}** kWh")
+                            st.write(f"Current Reading: **{ocr_result}** kWh")
+                            st.write(f"Units Consumed = {ocr_result} - {previous_reading} = **{usage}** kWh")
+                            st.write(f"Fixed Charges = Rs. 100/-")
+                            st.write(f"Total Bill Amount = Rs. **{bill_amount:.2f}**")
+
+                            # Generate PDF
+                            pdf_data = generate_pdf(
+                                previous_reading=previous_reading,
+                                current_reading=float(ocr_result),
+                                usage=usage,
+                                bill_amount=bill_amount,
+                                images=[image],
+                                cropped_images=[cropped_image]
+                            )
+
+                            # Provide download button
+                            st.download_button(
+                                label="Download Bill as PDF",
+                                data=pdf_data,
+                                file_name="meter_bill.pdf",
+                                mime='application/pdf'
+                            )
+                else:
+                    st.warning("OCR skipped due to poor screen quality.")
             except Exception as e:
                 st.error(f"An error occurred during cropping or OCR: {e}")
     else:

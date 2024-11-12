@@ -1,4 +1,6 @@
 import os
+import torch
+import torch.nn as nn
 import cv2
 import numpy as np
 from torchvision import transforms, models
@@ -6,8 +8,6 @@ from PIL import Image
 from ultralytics import YOLO
 import tensorflow as tf
 import string
-import torch
-import torch.nn as nn
 import streamlit as st  # type: ignore
 
 # Define constants
@@ -21,7 +21,7 @@ models_folder = 'model'  # Ensure this folder contains the required models
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
 yolo_model_path = os.path.join(models_folder, 'yolo-screen-obb-grayscale.pt')
 ocr_model_path = os.path.join(models_folder, 'model_float16.tflite')
-screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale.pth')  # New classifier
+screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale_cnn.pth')  # New classifier
 
 # CNN Model Definition
 class CNNBinaryClassifier(nn.Module):
@@ -62,39 +62,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the meter classifier model
 @st.cache_resource
-# def load_screen_quality_classifier(model_path):
-#     model = CNNBinaryClassifier()
-#     # Use the original torch.load
-#     from torch.serialization import load as original_torch_load
-#     state_dict = original_torch_load(model_path, map_location=device)
-#     model.load_state_dict(state_dict)
-#     model = model.to(device)
-#     model.eval()
-#     return model
-# Load the screen quality classifier model using ResNet-18
-@st.cache_resource
-def load_screen_quality_classifier(model_path):
-    try:
-        # Initialize a pre-trained ResNet-18 model
-        model = models.resnet18(pretrained=False)
-        
-        # Modify the final fully connected layer for binary classification
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, 2)  # Assuming 2 classes: 'ng' and 'ok'
-        
-        # Load the state dictionary
-        state_dict = torch.load(model_path, map_location=device)
-        model.load_state_dict(state_dict)
-        
-        # Move the model to the appropriate device and set to evaluation mode
-        model = model.to(device)
-        model.eval()
-        
-        return model
-    except Exception as e:
-        st.error(f"An error occurred while loading the screen quality classifier: {e}")
-        raise
-
+def load_meter_classifier(model_path):
+    model = models.resnet18()
+    num_features = model.fc.in_features
+    model.fc = torch.nn.Linear(num_features, 2)  # Assuming 2 classes: 'meter' and 'no_meter'
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model = model.to(device)
+    model.eval()
+    return model
 
 # Load the YOLO model
 @st.cache_resource
@@ -111,10 +86,8 @@ def load_ocr_interpreter(model_path):
 
 # Load the screen quality classifier model
 @st.cache_resource
-def load_meter_classifier(model_path):
-    model = models.resnet18()
-    num_features = model.fc.in_features
-    model.fc = torch.nn.Linear(num_features, 2)  # Assuming 2 classes: 'meter' and 'no_meter'
+def load_screen_quality_classifier(model_path):
+    model = CNNBinaryClassifier()
     model.load_state_dict(torch.load(model_path, map_location=device))
     model = model.to(device)
     model.eval()
@@ -304,7 +277,7 @@ def perform_ocr(cropped_image, ocr_interpreter):
 
     return modified_text
 
-def draw_bounding_box(image, box, color=(255, 0, 255), thickness=11):
+def draw_bounding_box(image, box, color=(255, 0, 0), thickness=30):
     """
     Draws the bounding box on the image.
     """
@@ -319,7 +292,6 @@ def draw_bounding_box(image, box, color=(255, 0, 255), thickness=11):
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
     st.title("📊 Meter OCR Application")
-    st.write("### Note that this is a demo and some models are lite versions of actual models. Performance may vary.")
 
     # Load models
     with st.spinner("Loading models..."):
@@ -388,7 +360,7 @@ def main():
                 # Perform Screen Quality Classification
                 # Convert cropped_image to PIL Image for consistency
                 cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
-                class_names_quality = ['ok', 'ng']  # Ensure correct order
+                class_names_quality = ['ng', 'ok']  # Ensure correct order
                 predicted_class_quality = perform_classification(cropped_pil, screen_quality_classifier, screen_clf_transform, class_names_quality)
                 with cols[4]:
                     st.write("### Screen Quality Classification")

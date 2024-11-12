@@ -319,7 +319,7 @@ def draw_bounding_box(image, box, color=(255, 0, 255), thickness=11):
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
     st.title("📊 Meter OCR Application")
-    st.write("### Note that this is a demo and some models are lite versions of actual models. Performance may vary.")
+    st.write("##### Note that this is a demo and some models are lite versions of actual models. Performance may vary.")
 
     # Load models
     with st.spinner("Loading models..."):

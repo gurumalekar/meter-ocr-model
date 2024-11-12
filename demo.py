@@ -342,7 +342,7 @@ def main():
         class_names_meter = ['meter', 'no_meter']
         predicted_class_meter = perform_classification(image, meter_classifier, common_transform, class_names_meter)
         with cols[1]:
-            st.write("### Meter Classification")
+            st.write("### Meter Presence Detection")
             if predicted_class_meter == 'meter':
                 st.success("Meter device is **visible** in the image.")
             else:
@@ -354,7 +354,7 @@ def main():
 
             if box is not None:
                 with cols[2]:
-                    st.write("### YOLO Detection")
+                    st.write("### Screen Extractor")
                     st.write(f"**Detection Confidence:** {confidence:.2f}")
 
                     # Draw bounding box on the image
@@ -372,7 +372,7 @@ def main():
                 cropped_image = crop_image(image_np, box)
 
                 with cols[3]:
-                    st.write("### Cropped Meter Screen")
+                    st.write("### Readability Assessment Model")
                     st.image(cropped_image, caption='Cropped Meter Screen', use_column_width=True)
 
                 # Screen Quality Classification

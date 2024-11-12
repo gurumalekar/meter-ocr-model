@@ -372,7 +372,7 @@ def main():
                 cropped_image = crop_image(image_np, box)
 
                 with cols[3]:
-                    st.write("### Readability Assessment Model")
+                    st.write("### Cropped Screen")
                     st.image(cropped_image, caption='Cropped Meter Screen', use_column_width=True)
 
                 # Screen Quality Classification
@@ -385,11 +385,11 @@ def main():
                     class_names_quality
                 )
                 with cols[4]:
-                    st.write("### Screen Quality Classification")
+                    st.write("### Readability Assessment Model")
                     if predicted_class_quality == 'ok':
-                        st.success("Screen quality is **OK**.")
+                        st.success("Screen quality is **Readable**.")
                     else:
-                        st.warning("Screen quality is **NG** (Not Good).")
+                        st.warning("Screen quality is **Unreadable** (Not Good).")
 
                 # Perform OCR if screen quality is OK
                 if predicted_class_quality == 'ok':

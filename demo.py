@@ -263,7 +263,7 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
     elements.append(Paragraph("Meter Reading Details", normal_text))
     elements.append(Spacer(1, 12))
 
-    # Display uploaded image
+    # Display uploaded image and cropped image
     if images:
         for idx, (image, cropped_image) in enumerate(zip(images, cropped_images), start=1):
             elements.append(Paragraph(f"Image {idx}", normal_text))
@@ -397,6 +397,14 @@ def main():
                     st.write("## OCR Result:")
                     st.write(f"### {ocr_result}")
 
+                    # Editable OCR Result
+                    edited_reading = st.number_input(
+                        "Edit Current Meter Reading (kWh):",
+                        value=float(ocr_result) if ocr_result.replace('.', '', 1).isdigit() else 0.0,
+                        min_value=0.0,
+                        step=1.0
+                    )
+
                     # Input for previous reading
                     previous_reading = st.number_input(
                         "Enter your previous meter reading (kWh):",
@@ -405,23 +413,23 @@ def main():
                     )
 
                     if st.button("Calculate Bill"):
-                        if previous_reading > float(ocr_result):
+                        if previous_reading > edited_reading:
                             st.error("Current reading cannot be less than previous reading.")
                         else:
-                            usage = float(ocr_result) - previous_reading
+                            usage = edited_reading - previous_reading
                             bill_amount = calculate_bill(usage)
 
                             st.write("## Bill Calculations:")
                             st.write(f"Previous Reading: **{previous_reading}** kWh")
-                            st.write(f"Current Reading: **{ocr_result}** kWh")
-                            st.write(f"Units Consumed = {ocr_result} - {previous_reading} = **{usage}** kWh")
+                            st.write(f"Current Reading: **{edited_reading}** kWh")
+                            st.write(f"Units Consumed = {edited_reading} - {previous_reading} = **{usage}** kWh")
                             st.write(f"Fixed Charges = Rs. 100/-")
                             st.write(f"Total Bill Amount = Rs. **{bill_amount:.2f}**")
 
                             # Generate PDF
                             pdf_data = generate_pdf(
                                 previous_reading=previous_reading,
-                                current_reading=float(ocr_result),
+                                current_reading=edited_reading,
                                 usage=usage,
                                 bill_amount=bill_amount,
                                 images=[image],

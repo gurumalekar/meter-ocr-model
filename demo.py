@@ -319,11 +319,11 @@ def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
 
     # Header with logo and title
-    header_col1, header_col2 = st.columns([1, 3])
+    header_col1, header_col2, header_col3 = st.columns([1, 2, 3])
     with header_col1:
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)
-    with header_col1:
+    with header_col2:
         st.markdown("<h1 style='text-align: center; color: white;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
         # st.title("AI-Powered Meter Display Interpretation System")
         st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)

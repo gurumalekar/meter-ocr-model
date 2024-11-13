@@ -410,6 +410,9 @@ def main():
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
 
+    # Initialize 'readings' to avoid UnboundLocalError
+    readings = {}
+
     # Check if company_logo.png exists
     if os.path.exists("company_logo.png"):
         logo_base64 = load_image_as_base64("company_logo.png")
@@ -454,7 +457,7 @@ def main():
                 # Load images
                 prev_image = Image.open(sample_prev_path).convert('RGB')
                 curr_image = Image.open(sample_curr_path).convert('RGB')
-                
+
                 # Process image pair
                 uploaded_images, cropped_images, readings = process_image_pair(
                     previous_image=prev_image,

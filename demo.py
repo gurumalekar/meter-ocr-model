@@ -319,7 +319,7 @@ def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
 
     # Header with logo and title
-    header_col1 = st.columns([1])
+    header_col1 = st.columns(1)
     with header_col1:
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)

@@ -354,7 +354,7 @@ def main():
         )
 
     if uploaded_prev and uploaded_curr:
-        st.header("Processing Images")
+        # st.header("Processing Images")
 
         # Initialize lists to store images and cropped images
         uploaded_images = []
@@ -370,7 +370,7 @@ def main():
             [display_prev, display_curr]
         ):
             with display_col:
-                st.subheader(f"{label} Month Image Processing")
+                st.subheader(f"{label} Month Image")
 
                 # Read image
                 try:
@@ -384,7 +384,7 @@ def main():
                     # Meter Classification
                     class_names_meter = ['meter', 'no_meter']
                     predicted_class_meter = perform_classification(image, meter_classifier, common_transform, class_names_meter)
-                    st.write("### Meter Presence Detection")
+                    # st.write("### Meter Presence Detection")
                     if predicted_class_meter == 'meter':
                         st.success("Meter device is **visible** in the image.")
                     else:
@@ -395,7 +395,7 @@ def main():
                         box, confidence = perform_yolo_detection(image_np, yolo_model)
 
                         if box is not None:
-                            st.write("### Screen Extractor")
+                            # st.write("### Screen Extractor")
                             st.write(f"**Detection Confidence:** {confidence:.2f}")
 
                             # Draw bounding box on the image
@@ -407,8 +407,8 @@ def main():
                             cropped_image = crop_image(image_np, box)
                             cropped_images.append(cropped_image)
 
-                            st.write("### Cropped Screen")
-                            st.image(cropped_image, caption='Cropped Meter Screen', use_column_width=True)
+                            # st.write("### Cropped Screen")
+                            st.image(cropped_image, caption='Cropped Meter Screen', width=400)
 
                             # Screen Quality Classification
                             cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
@@ -419,7 +419,7 @@ def main():
                                 screen_clf_transform,
                                 class_names_quality
                             )
-                            st.write("### Readability Assessment Model")
+                            # st.write("### Readability Assessment Model")
                             if predicted_class_quality == 'ok':
                                 st.success("Screen quality is **Readable**.")
                             else:
@@ -428,8 +428,8 @@ def main():
                             # Perform OCR if screen quality is OK
                             if predicted_class_quality == 'ok':
                                 ocr_result = perform_ocr(cropped_image, ocr_interpreter)
-                                st.write("## OCR Result:")
-                                st.write(f"### {ocr_result}")
+                                st.write("### OCR Result:")
+                                st.write(f"#### {ocr_result}")
 
                                 # Editable OCR Result
                                 reading = st.number_input(

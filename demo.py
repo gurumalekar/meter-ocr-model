@@ -317,17 +317,30 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
 # Streamlit App
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
-    # st.image('company_logo.png', width=150)
-    st.markdown("<h1 style='text-align: center; color: white;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
-        # st.title("AI-Powered Meter Display Interpretation System")
-    st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; color: white;'>Problem Statement - 5</h3>", unsafe_allow_html=True)
-    # Header with logo and title
-    # header_col1, header_col2 = st.columns([1, 2])
-    # with header_col1:
-    #     if os.path.exists('company_logo.png'):
-    #         st.image('company_logo.png', width=150)
-    # with header_col2:
+    import base64
+
+    # Function to load and encode image
+    def load_image_as_base64(image_path):
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+
+    # Load and encode the company logo
+    logo_base64 = load_image_as_base64("company_logo.png")
+
+    # Display the logo and headings in a single line
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: center; justify-content: left;">
+            <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 80px;">
+            <div style="text-align: center; color: white;">
+                <h1>AI-Powered Meter Display Interpretation System</h1>
+                <h2>HackAP Hackathon: Power Distribution</h2>
+                <h3>Problem Statement - 5</h3>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
         
 
     # Load models

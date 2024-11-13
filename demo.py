@@ -194,7 +194,7 @@ def perform_ocr(cropped_image, ocr_interpreter):
             os.remove(temp_path)
     return modified_text
 
-def draw_bounding_box(image, box, color=(255, 0, 255), thickness=2):
+def draw_bounding_box(image, box, color=(255, 0, 255), thickness=22):
     box = box.astype(int)
     for i in range(4):
         pt1 = tuple(box[i])
@@ -378,7 +378,7 @@ def main():
                     uploaded_images.append(image)
 
                     # Display uploaded image
-                    st.image(image, caption=f'{label} Month Uploaded Image', use_column_width=True)
+                    # st.image(image, caption=f'{label} Month Uploaded Image', use_column_width=True)
 
                     # Meter Classification
                     class_names_meter = ['meter', 'no_meter']
@@ -400,7 +400,7 @@ def main():
                             # Draw bounding box on the image
                             image_with_box = image_np.copy()
                             image_with_box = draw_bounding_box(image_with_box, box)
-                            st.image(image_with_box, caption='Image with Bounding Box', use_column_width=True)
+                            st.image(cv2.resize(image_with_box, (480, 480)), caption='Image with Bounding Box', use_column_width=True)
 
                             # Crop the detected area
                             cropped_image = crop_image(image_np, box)

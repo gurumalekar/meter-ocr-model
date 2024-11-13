@@ -268,36 +268,38 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
 
     # Display previous and current images
     if images:
+        cols = st.columns(2)
         for idx, (image, cropped_image) in enumerate(zip(images, cropped_images), start=1):
             month = "Previous" if idx == 1 else "Current"
-            elements.append(Paragraph(f"{month} Month Image", normal_text))
-            elements.append(Spacer(1, 12))
-
-            # Add uploaded image
-            uploaded_image_pil = image
-            uploaded_image_buffer = BytesIO()
-            uploaded_image_pil.save(uploaded_image_buffer, format='PNG')
-            uploaded_image_buffer.seek(0)
-            reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
-            elements.append(reportlab_uploaded_image)
-            elements.append(Spacer(1, 12))
-
-            # Add cropped image
-            if cropped_image is not None:
-                cropped_image_pil = Image.fromarray(cropped_image)
-                cropped_image_buffer = BytesIO()
-                cropped_image_pil.save(cropped_image_buffer, format='PNG')
-                cropped_image_buffer.seek(0)
-                reportlab_cropped_image = ReportLabImage(cropped_image_buffer, width=3*inch, height=1*inch)
-                elements.append(reportlab_cropped_image)
+            with cols[idx-1]:
+                elements.append(Paragraph(f"{month} Month Image", normal_text))
                 elements.append(Spacer(1, 12))
 
-                # Add reading
-                if idx == 1:
-                    elements.append(Paragraph(f"Previous Reading: {previous_reading} kWh", normal_text_2))
-                else:
-                    elements.append(Paragraph(f"Current Reading: {current_reading} kWh", normal_text_2))
+                # Add uploaded image
+                uploaded_image_pil = image
+                uploaded_image_buffer = BytesIO()
+                uploaded_image_pil.save(uploaded_image_buffer, format='PNG')
+                uploaded_image_buffer.seek(0)
+                reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
+                elements.append(reportlab_uploaded_image)
                 elements.append(Spacer(1, 12))
+
+                # Add cropped image
+                if cropped_image is not None:
+                    cropped_image_pil = Image.fromarray(cropped_image)
+                    cropped_image_buffer = BytesIO()
+                    cropped_image_pil.save(cropped_image_buffer, format='PNG')
+                    cropped_image_buffer.seek(0)
+                    reportlab_cropped_image = ReportLabImage(cropped_image_buffer, width=3*inch, height=1*inch)
+                    elements.append(reportlab_cropped_image)
+                    elements.append(Spacer(1, 12))
+
+                    # Add reading
+                    if idx == 1:
+                        elements.append(Paragraph(f"Previous Reading: {previous_reading} kWh", normal_text_2))
+                    else:
+                        elements.append(Paragraph(f"Current Reading: {current_reading} kWh", normal_text_2))
+                    elements.append(Spacer(1, 12))
 
     # Add calculations
     elements.append(Spacer(1, 24))
@@ -318,11 +320,11 @@ def process_image_pair(previous_image, current_image, meter_classifier, yolo_mod
     uploaded_images = [previous_image, current_image]
     cropped_images = [None, None]
     readings = {}
-    
+
     # Create two columns for side-by-side display
     display_cols = st.columns(2)
-    
-    for idx, (label, image, display_col) in enumerate(zip(['Previous', 'Current'], uploaded_images, display_cols)):
+
+    for idx, (label, image, display_col) in enumerate(zip(['Previous', 'Current'], uploaded_images, display_cols), start=1):
         with display_col:
             st.subheader(f"{label} Month Image")
 
@@ -351,7 +353,7 @@ def process_image_pair(previous_image, current_image, meter_classifier, yolo_mod
 
                         # Crop the detected area
                         cropped_image = crop_image(image_np, box)
-                        cropped_images[idx] = cropped_image
+                        cropped_images[idx-1] = cropped_image
 
                         st.image(cropped_image, caption='Cropped Meter Screen', width=300)
 
@@ -389,15 +391,15 @@ def process_image_pair(previous_image, current_image, meter_classifier, yolo_mod
                             readings[label] = 0.0
                     else:
                         st.warning("Meter screen unclear/not detected in the image.")
-                        cropped_images[idx] = None
+                        cropped_images[idx-1] = None
                         readings[label] = 0.0
                 except Exception as e:
                     st.error(f"An error occurred during YOLO detection or cropping: {e}")
-                    cropped_images[idx] = None
+                    cropped_images[idx-1] = None
                     readings[label] = 0.0
             except Exception as e:
                 st.error(f"An error occurred while processing the {label} month image: {e}")
-                cropped_images[idx] = None
+                cropped_images[idx-1] = None
                 readings[label] = 0.0
 
     return uploaded_images, cropped_images, readings
@@ -407,8 +409,9 @@ def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
     import base64
 
-    # Initialize readings
-    readings = {}
+    # Initialize session state for processing
+    if 'processing' not in st.session_state:
+        st.session_state['processing'] = False
 
     # Function to load and encode image
     def load_image_as_base64(image_path):
@@ -443,42 +446,53 @@ def main():
 
     st.header("Load Sample Image Pairs or Upload Your Own")
 
-    # Button to load sample pairs
-    sample_buttons = st.columns(3)
-    sample_pairs = [
-        ("Sample Pair 1", "a1.jpg", "a2.jpg"),
-        ("Sample Pair 2", "a3.jpg", "a4.jpg"),
-        ("Sample Pair 3", "a5.jpg", "a6.jpg")
-    ]
+    # Dropdown menu for selecting mode
+    mode = st.selectbox("Select Mode", ["Upload Your Own Images", "Explore Sample Images"])
 
-    sample_loaded = False  # Flag to check if sample images are loaded
+    if mode == "Explore Sample Images":
+        # Button to load sample pairs
+        sample_pairs = [
+            ("Sample Pair 1", "a1.jpg", "a2.jpg"),
+            ("Sample Pair 2", "a3.jpg", "a4.jpg"),
+            ("Sample Pair 3", "a5.jpg", "a6.jpg")
+        ]
 
-    for idx, (label, img1, img2) in enumerate(sample_pairs):
-        if sample_buttons[idx].button(label):
-            sample_prev_path = os.path.join(sample_pairs_folder, img1)
-            sample_curr_path = os.path.join(sample_pairs_folder, img2)
-            if os.path.exists(sample_prev_path) and os.path.exists(sample_curr_path):
-                # Load images
-                prev_image = Image.open(sample_prev_path).convert('RGB')
-                curr_image = Image.open(sample_curr_path).convert('RGB')
-                
-                # Process image pair
-                uploaded_images, cropped_images, readings = process_image_pair(
-                    previous_image=prev_image,
-                    current_image=curr_image,
-                    meter_classifier=meter_classifier,
-                    yolo_model=yolo_model,
-                    ocr_interpreter=ocr_interpreter,
-                    screen_quality_classifier=screen_quality_classifier
-                )
-                sample_loaded = True
-            else:
-                st.error("Sample images not found in the 'sample_pairs' folder.")
+        sample_buttons = st.columns(len(sample_pairs))
 
-    if not sample_loaded:
-        st.write("---")
-        st.subheader("Or Upload Your Own Meter Images")
+        for idx, (label, img1, img2) in enumerate(sample_pairs):
+            with sample_buttons[idx]:
+                # Disable button if processing
+                if st.session_state['processing']:
+                    st.button(label, disabled=True)
+                else:
+                    if st.button(label):
+                        sample_prev_path = os.path.join(sample_pairs_folder, img1)
+                        sample_curr_path = os.path.join(sample_pairs_folder, img2)
+                        if os.path.exists(sample_prev_path) and os.path.exists(sample_curr_path):
+                            # Set processing state
+                            st.session_state['processing'] = True
 
+                            # Load images
+                            prev_image = Image.open(sample_prev_path).convert('RGB')
+                            curr_image = Image.open(sample_curr_path).convert('RGB')
+
+                            # Process image pair
+                            uploaded_images, cropped_images, readings = process_image_pair(
+                                previous_image=prev_image,
+                                current_image=curr_image,
+                                meter_classifier=meter_classifier,
+                                yolo_model=yolo_model,
+                                ocr_interpreter=ocr_interpreter,
+                                screen_quality_classifier=screen_quality_classifier
+                            )
+
+                            # Reset processing state
+                            st.session_state['processing'] = False
+                        else:
+                            st.error("Sample images not found in the 'sample_pairs' folder.")
+
+    elif mode == "Upload Your Own Images":
+        st.subheader("Upload Images for Previous and Current Months")
         # File uploaders for previous and current images
         prev_col, curr_col = st.columns(2)
         with prev_col:
@@ -495,23 +509,39 @@ def main():
             )
 
         if uploaded_prev and uploaded_curr:
-            st.header("Processing Uploaded Images")
+            # Disable upload buttons if processing
+            if not st.session_state['processing']:
+                process = st.button("Process Uploaded Images")
+            else:
+                st.button("Process Uploaded Images", disabled=True)
+                process = False
 
-            # Load images
-            prev_image = Image.open(uploaded_prev).convert('RGB')
-            curr_image = Image.open(uploaded_curr).convert('RGB')
+            if process:
+                # Set processing state
+                st.session_state['processing'] = True
 
-            # Process image pair
-            uploaded_images, cropped_images, readings = process_image_pair(
-                previous_image=prev_image,
-                current_image=curr_image,
-                meter_classifier=meter_classifier,
-                yolo_model=yolo_model,
-                ocr_interpreter=ocr_interpreter,
-                screen_quality_classifier=screen_quality_classifier
-            )
+                # Load images
+                prev_image = Image.open(uploaded_prev).convert('RGB')
+                curr_image = Image.open(uploaded_curr).convert('RGB')
+
+                # Process image pair
+                uploaded_images, cropped_images, readings = process_image_pair(
+                    previous_image=prev_image,
+                    current_image=curr_image,
+                    meter_classifier=meter_classifier,
+                    yolo_model=yolo_model,
+                    ocr_interpreter=ocr_interpreter,
+                    screen_quality_classifier=screen_quality_classifier
+                )
+
+                # Reset processing state
+                st.session_state['processing'] = False
 
     # Editable input boxes and billing calculations
+    # Initialize readings to prevent UnboundLocalError
+    if 'readings' not in locals():
+        readings = {}
+
     if 'Previous' in readings and 'Current' in readings:
         previous_reading = readings['Previous']
         current_reading = readings['Current']

@@ -401,7 +401,7 @@ def main():
                             # Draw bounding box on the image
                             image_with_box = image_np.copy()
                             image_with_box = draw_bounding_box(image_with_box, box)
-                            st.image(cv2.resize(image_with_box, (480, 480)), caption='Image with Bounding Box', use_column_width=True)
+                            st.image(image_with_box, caption='Image with Bounding Box', width=400)
 
                             # Crop the detected area
                             cropped_image = crop_image(image_np, box)

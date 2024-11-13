@@ -349,13 +349,13 @@ def process_image_pair(previous_image, current_image, meter_classifier, yolo_mod
                         # Draw bounding box on the image
                         image_with_box = image_np.copy()
                         image_with_box = draw_bounding_box(image_with_box, box)
-                        st.image(image_with_box, caption='Image with Bounding Box', width=300)
+                        st.image(image_with_box, caption='Image with Bounding Box', width=240)
 
                         # Crop the detected area
                         cropped_image = crop_image(image_np, box)
                         cropped_images[idx-1] = cropped_image
 
-                        st.image(cropped_image, caption='Cropped Meter Screen', width=300)
+                        st.image(cropped_image, caption='Cropped Meter Screen', width=240)
 
                         # Screen Quality Classification
                         cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))

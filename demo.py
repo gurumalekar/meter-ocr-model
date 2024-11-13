@@ -323,7 +323,7 @@ def main():
     with header_col1:
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)
-    with header_col2:
+    with header_col1:
         st.markdown("<h1 style='text-align: center; color: white;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
         # st.title("AI-Powered Meter Display Interpretation System")
         st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)

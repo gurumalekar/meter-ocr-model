@@ -324,8 +324,8 @@ def main():
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)
     with header_col2:
-        st.title("Electric Meter OCR Application")
-        st.subheader("HackAP Hackathon: Power Distribution - Problem Statement 5")
+        st.title("AI-Powered Meter Display Interpretation System")
+        st.subheader("HackAP Hackathon: Power Distribution \n (Problem Statement - 5)")
 
     # Load models
     with st.spinner("Loading models..."):

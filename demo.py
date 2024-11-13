@@ -317,7 +317,7 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
 # Streamlit App
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
-    st.image('company_logo.png', width=150)
+    # st.image('company_logo.png', width=150)
     st.markdown("<h1 style='text-align: center; color: white;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
         # st.title("AI-Powered Meter Display Interpretation System")
     st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)

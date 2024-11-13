@@ -326,7 +326,7 @@ def process_image_pair(previous_image, current_image, meter_classifier, yolo_mod
 
     for idx, (label, image, display_col) in enumerate(zip(['Previous', 'Current'], uploaded_images, display_cols), start=1):
         with display_col:
-            st.subheader(f"{label} Month Image")
+            st.subheader(f"{label} Month")
 
             try:
                 image_np = np.array(image)

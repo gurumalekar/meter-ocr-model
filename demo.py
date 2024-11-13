@@ -279,8 +279,8 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
                 uploaded_image_buffer = BytesIO()
                 uploaded_image_pil.save(uploaded_image_buffer, format='PNG')
                 uploaded_image_buffer.seek(0)
-                reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
-                elements.append(reportlab_uploaded_image)
+                # reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
+                # elements.append(reportlab_uploaded_image)
                 elements.append(Spacer(1, 12))
 
                 # Add cropped image

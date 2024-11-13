@@ -195,7 +195,7 @@ def perform_ocr(cropped_image, ocr_interpreter):
             os.remove(temp_path)
     return modified_text
 
-def draw_bounding_box(image, box, color=(255, 0, 255), thickness=22):
+def draw_bounding_box(image, box, color=(255, 0, 0), thickness=22):
     box = box.astype(int)
     for i in range(4):
         pt1 = tuple(box[i])

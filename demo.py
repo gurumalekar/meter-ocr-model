@@ -322,7 +322,7 @@ def main():
     st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center; color: white;'>Problem Statement - 5</h3>", unsafe_allow_html=True)
     # Header with logo and title
-    header_col1, header_col2 = st.columns([1, 2)
+    header_col1, header_col2 = st.columns([1, 2])
     with header_col1:
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)

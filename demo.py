@@ -454,7 +454,7 @@ def main():
         sample_pairs = [
             ("Sample Pair 1", "a1.jpg", "a2.jpg"),
             ("Sample Pair 2", "a3.jpg", "a4.jpg"),
-            ("Sample Pair 3", "a5.jpg", "a6.jpg")
+            ("Sample Pair 3", "a6.jpg", "a7.jpg")
         ]
 
         sample_buttons = st.columns(len(sample_pairs))

@@ -324,8 +324,10 @@ def main():
         if os.path.exists('company_logo.png'):
             st.image('company_logo.png', width=150)
     with header_col2:
-        st.title("AI-Powered Meter Display Interpretation System")
-        st.subheader("HackAP Hackathon: Power Distribution \n (Problem Statement - 5)")
+        st.markdown("<h1 style='text-align: center; color: white;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
+        # st.title("AI-Powered Meter Display Interpretation System")
+        st.markdown("<h2 style='text-align: center; color: white;'>HackAP Hackathon: Power Distribution</h2>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; color: white;'>Problem Statement - 5</h3>", unsafe_allow_html=True)
 
     # Load models
     with st.spinner("Loading models..."):

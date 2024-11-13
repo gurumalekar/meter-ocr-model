@@ -25,6 +25,7 @@ from reportlab.lib.enums import TA_CENTER
 alphabet = string.digits + string.ascii_lowercase + '.'
 blank_index = len(alphabet)
 models_folder = 'model'
+sample_pairs_folder = 'sample_pairs'  # Folder containing sample image pairs
 
 # Model paths
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
@@ -279,8 +280,8 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
                 uploaded_image_buffer = BytesIO()
                 uploaded_image_pil.save(uploaded_image_buffer, format='PNG')
                 uploaded_image_buffer.seek(0)
-                # reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
-                # elements.append(reportlab_uploaded_image)
+                reportlab_uploaded_image = ReportLabImage(uploaded_image_buffer, width=3*inch, height=2*inch)
+                elements.append(reportlab_uploaded_image)
                 elements.append(Spacer(1, 12))
 
                 # Add cropped image
@@ -314,6 +315,91 @@ def generate_pdf(previous_reading, current_reading, usage, bill_amount, images, 
     buffer.close()
     return pdf
 
+def process_image_pair(previous_image, current_image, meter_classifier, yolo_model, ocr_interpreter, screen_quality_classifier):
+    # Initialize lists to store images and cropped images
+    uploaded_images = [previous_image, current_image]
+    cropped_images = [None, None]
+    readings = {}
+
+    for idx, (label, image) in enumerate(zip(['Previous', 'Current'], uploaded_images), start=1):
+        st.subheader(f"{label} Month Image")
+
+        try:
+            image_np = np.array(image)
+
+            # Meter Classification
+            class_names_meter = ['meter', 'no_meter']
+            predicted_class_meter = perform_classification(image, meter_classifier, common_transform, class_names_meter)
+            if predicted_class_meter == 'meter':
+                st.success("Meter device is **visible** in the image.")
+            else:
+                st.warning("Meter device might **not be visible** or multiple devices present.")
+
+            # YOLO Detection
+            try:
+                box, confidence = perform_yolo_detection(image_np, yolo_model)
+
+                if box is not None:
+                    st.write(f"**Detection Confidence:** {confidence:.2f}")
+
+                    # Draw bounding box on the image
+                    image_with_box = image_np.copy()
+                    image_with_box = draw_bounding_box(image_with_box, box)
+                    st.image(image_with_box, caption='Image with Bounding Box', width=400)
+
+                    # Crop the detected area
+                    cropped_image = crop_image(image_np, box)
+                    cropped_images[idx-1] = cropped_image
+
+                    st.image(cropped_image, caption='Cropped Meter Screen', width=400)
+
+                    # Screen Quality Classification
+                    cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
+                    class_names_quality = ['ok', 'ng']
+                    predicted_class_quality = perform_classification(
+                        cropped_pil,
+                        screen_quality_classifier,
+                        screen_clf_transform,
+                        class_names_quality
+                    )
+                    if predicted_class_quality == 'ok':
+                        st.success("Screen quality is **Readable**.")
+                    else:
+                        st.warning("Screen quality is **Unreadable** (Not Good).")
+
+                    # Perform OCR if screen quality is OK
+                    if predicted_class_quality == 'ok':
+                        ocr_result = perform_ocr(cropped_image, ocr_interpreter)
+                        st.write("### OCR Result:")
+                        st.write(f"#### {ocr_result}")
+
+                        # Editable OCR Result
+                        reading = st.number_input(
+                            f"Edit {label} Meter Reading (kWh):",
+                            value=float(ocr_result) if ocr_result.replace('.', '', 1).isdigit() else 0.0,
+                            min_value=0.0,
+                            step=1.0,
+                            key=f'reading_{label}'
+                        )
+                        readings[label] = reading
+                    else:
+                        st.warning("OCR skipped due to poor screen quality.")
+                        readings[label] = 0.0
+                else:
+                    st.warning("Meter screen unclear/not detected in the image.")
+                    cropped_images[idx-1] = None
+                    readings[label] = 0.0
+            except Exception as e:
+                st.error(f"An error occurred during YOLO detection or cropping: {e}")
+                cropped_images[idx-1] = None
+                readings[label] = 0.0
+        except Exception as e:
+            st.error(f"An error occurred while processing the {label} month image: {e}")
+            cropped_images[idx-1] = None
+            readings[label] = 0.0
+
+    return uploaded_images, cropped_images, readings
+
 # Streamlit App
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
@@ -324,24 +410,22 @@ def main():
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
 
-    # Load and encode the company logo
-    logo_base64 = load_image_as_base64("company_logo.png")
-
-    # Display the logo and headings in a single line
-    st.markdown(
-        f"""
-        <div style="display: flex; align-items: center; justify-content: left;">
-            <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 80px;">
-            <div style="text-align: center; color: white;">
-                <h1>AI-Powered Meter Display Interpretation System</h1>
-                <h2>HackAP Hackathon: Power Distribution</h2>
-                <h3>Problem Statement - 5</h3>
+    # Check if company_logo.png exists
+    if os.path.exists("company_logo.png"):
+        logo_base64 = load_image_as_base64("company_logo.png")
+        logo_html = f"""
+            <div style="display: flex; align-items: center;">
+                <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 50px;">
+                <div>
+                    <h1>AI-Powered Meter Display Interpretation System</h1>
+                    <h3>HackAP Hackathon: Power Distribution - Problem Statement 5</h3>
+                </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-        
+        """
+        st.markdown(logo_html, unsafe_allow_html=True)
+    else:
+        st.title("AI-Powered Meter Display Interpretation System")
+        st.subheader("HackAP Hackathon: Power Distribution - Problem Statement 5")
 
     # Load models
     with st.spinner("Loading models..."):
@@ -352,7 +436,39 @@ def main():
 
     st.success("Models loaded successfully!")
 
-    st.header("Upload Meter Images for Two Months")
+    st.header("Load Sample Image Pairs or Upload Your Own")
+
+    # Button to load sample pairs
+    sample_buttons = st.columns(3)
+    sample_pairs = [
+        ("Sample Pair 1", "a1.jpg", "a2.jpg"),
+        ("Sample Pair 2", "a3.jpg", "a4.jpg"),
+        ("Sample Pair 3", "a5.jpg", "a6.jpg")
+    ]
+
+    for idx, (label, img1, img2) in enumerate(sample_pairs):
+        if sample_buttons[idx].button(label):
+            sample_prev_path = os.path.join(sample_pairs_folder, img1)
+            sample_curr_path = os.path.join(sample_pairs_folder, img2)
+            if os.path.exists(sample_prev_path) and os.path.exists(sample_curr_path):
+                # Load images
+                prev_image = Image.open(sample_prev_path).convert('RGB')
+                curr_image = Image.open(sample_curr_path).convert('RGB')
+                
+                # Process image pair
+                uploaded_images, cropped_images, readings = process_image_pair(
+                    previous_image=prev_image,
+                    current_image=curr_image,
+                    meter_classifier=meter_classifier,
+                    yolo_model=yolo_model,
+                    ocr_interpreter=ocr_interpreter,
+                    screen_quality_classifier=screen_quality_classifier
+                )
+            else:
+                st.error("Sample images not found in the 'sample_pairs' folder.")
+
+    st.write("---")
+    st.subheader("Or Upload Your Own Meter Images")
 
     # File uploaders for previous and current images
     prev_col, curr_col = st.columns(2)
@@ -370,149 +486,63 @@ def main():
         )
 
     if uploaded_prev and uploaded_curr:
-        # st.header("Processing Images")
+        st.header("Processing Uploaded Images")
 
-        # Initialize lists to store images and cropped images
-        uploaded_images = []
-        cropped_images = []
-        readings = {}
+        # Load images
+        prev_image = Image.open(uploaded_prev).convert('RGB')
+        curr_image = Image.open(uploaded_curr).convert('RGB')
 
-        # Create two columns for side-by-side display
-        display_prev, display_curr = st.columns(2)
+        # Process image pair
+        uploaded_images, cropped_images, readings = process_image_pair(
+            previous_image=prev_image,
+            current_image=curr_image,
+            meter_classifier=meter_classifier,
+            yolo_model=yolo_model,
+            ocr_interpreter=ocr_interpreter,
+            screen_quality_classifier=screen_quality_classifier
+        )
 
-        for label, uploaded_file, display_col in zip(
-            ['Previous', 'Current'],
-            [uploaded_prev, uploaded_curr],
-            [display_prev, display_curr]
-        ):
-            with display_col:
-                st.subheader(f"{label} Month Image")
+    # Editable input boxes and billing calculations
+    if 'Previous' in readings and 'Current' in readings:
+        previous_reading = readings['Previous']
+        current_reading = readings['Current']
 
-                # Read image
-                try:
-                    image = Image.open(uploaded_file).convert('RGB')
-                    image_np = np.array(image)
-                    uploaded_images.append(image)
+        # Input validation
+        if current_reading < previous_reading:
+            st.error("Current reading cannot be less than previous reading.")
+        else:
+            usage = current_reading - previous_reading
+            bill_amount = calculate_bill(usage)
 
-                    # Display uploaded image
-                    # st.image(image, caption=f'{label} Month Uploaded Image', use_column_width=True)
+            st.header("Billing Calculations")
+            billing_col1, billing_col2 = st.columns(2)
+            with billing_col1:
+                st.write(f"**Previous Reading:** {previous_reading} kWh")
+                st.write(f"**Current Reading:** {current_reading} kWh")
+            with billing_col2:
+                st.write(f"**Units Consumed:** {usage} kWh")
+                st.write(f"**Total Bill Amount:** Rs. **{bill_amount:.2f}**")
 
-                    # Meter Classification
-                    class_names_meter = ['meter', 'no_meter']
-                    predicted_class_meter = perform_classification(image, meter_classifier, common_transform, class_names_meter)
-                    # st.write("### Meter Presence Detection")
-                    if predicted_class_meter == 'meter':
-                        st.success("Meter device is **visible** in the image.")
-                    else:
-                        st.warning("Meter device might **not be visible** or multiple devices present.")
+            # Generate PDF
+            pdf_data = generate_pdf(
+                previous_reading=previous_reading,
+                current_reading=current_reading,
+                usage=usage,
+                bill_amount=bill_amount,
+                images=uploaded_images,
+                cropped_images=cropped_images
+            )
 
-                    # YOLO Detection
-                    try:
-                        box, confidence = perform_yolo_detection(image_np, yolo_model)
+            # Provide download button
+            st.download_button(
+                label="Download Bill as PDF",
+                data=pdf_data,
+                file_name="meter_bill.pdf",
+                mime='application/pdf'
+            )
 
-                        if box is not None:
-                            # st.write("### Screen Extractor")
-                            st.write(f"**Detection Confidence:** {confidence:.2f}")
-
-                            # Draw bounding box on the image
-                            image_with_box = image_np.copy()
-                            image_with_box = draw_bounding_box(image_with_box, box)
-                            st.image(image_with_box, caption='Image with Bounding Box', width=400)
-
-                            # Crop the detected area
-                            cropped_image = crop_image(image_np, box)
-                            cropped_images.append(cropped_image)
-
-                            # st.write("### Cropped Screen")
-                            st.image(cropped_image, caption='Cropped Meter Screen', width=400)
-
-                            # Screen Quality Classification
-                            cropped_pil = Image.fromarray(cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB))
-                            class_names_quality = ['ok', 'ng']
-                            predicted_class_quality = perform_classification(
-                                cropped_pil,
-                                screen_quality_classifier,
-                                screen_clf_transform,
-                                class_names_quality
-                            )
-                            # st.write("### Readability Assessment Model")
-                            if predicted_class_quality == 'ok':
-                                st.success("Screen quality is **Readable**.")
-                            else:
-                                st.warning("Screen quality is **Unreadable** (Not Good).")
-
-                            # Perform OCR if screen quality is OK
-                            if predicted_class_quality == 'ok':
-                                ocr_result = perform_ocr(cropped_image, ocr_interpreter)
-                                st.write("### OCR Result:")
-                                st.write(f"#### {ocr_result}")
-
-                                # Editable OCR Result
-                                reading = st.number_input(
-                                    f"Edit {label} Meter Reading (kWh):",
-                                    value=float(ocr_result) if ocr_result.replace('.', '', 1).isdigit() else 0.0,
-                                    min_value=0.0,
-                                    step=1.0,
-                                    key=f'reading_{label}'
-                                )
-                                readings[label] = reading
-                            else:
-                                st.warning("OCR skipped due to poor screen quality.")
-                                readings[label] = 0.0
-                        else:
-                            st.warning("Meter screen unclear/not detected in the image.")
-                            cropped_images.append(None)
-                            readings[label] = 0.0
-                    except Exception as e:
-                        st.error(f"An error occurred during YOLO detection or cropping: {e}")
-                        cropped_images.append(None)
-                        readings[label] = 0.0
-                except Exception as e:
-                    st.error(f"An error occurred while processing the {label} month image: {e}")
-                    uploaded_images.append(None)
-                    cropped_images.append(None)
-                    readings[label] = 0.0
-
-        # Editable input boxes and billing calculations
-        if 'Previous' in readings and 'Current' in readings:
-            previous_reading = readings['Previous']
-            current_reading = readings['Current']
-
-            # Input validation
-            if current_reading < previous_reading:
-                st.error("Current reading cannot be less than previous reading.")
-            else:
-                usage = current_reading - previous_reading
-                bill_amount = calculate_bill(usage)
-
-                st.header("Billing Calculations")
-                billing_col1, billing_col2 = st.columns(2)
-                with billing_col1:
-                    st.write(f"**Previous Reading:** {previous_reading} kWh")
-                    st.write(f"**Current Reading:** {current_reading} kWh")
-                with billing_col2:
-                    st.write(f"**Units Consumed:** {usage} kWh")
-                    st.write(f"**Total Bill Amount:** Rs. **{bill_amount:.2f}**")
-
-                # Generate PDF
-                pdf_data = generate_pdf(
-                    previous_reading=previous_reading,
-                    current_reading=current_reading,
-                    usage=usage,
-                    bill_amount=bill_amount,
-                    images=uploaded_images,
-                    cropped_images=cropped_images
-                )
-
-                # Provide download button
-                st.download_button(
-                    label="Download Bill as PDF",
-                    data=pdf_data,
-                    file_name="meter_bill.pdf",
-                    mime='application/pdf'
-                )
     else:
-        st.info("Please upload images for both previous and current months to proceed.")
+        st.info("Please upload images for both previous and current months or select a sample pair to proceed.")
 
 if __name__ == '__main__':
     main()

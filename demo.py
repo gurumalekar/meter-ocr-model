@@ -19,22 +19,18 @@ from reportlab.platypus import (
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.enums import TA_CENTER
 
-# Define constants
 alphabet = string.digits + string.ascii_lowercase + '.'
 blank_index = len(alphabet)
 models_folder = 'model'
 sample_pairs_folder = 'sample_pairs'
 
-# Model paths
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
 yolo_model_path = os.path.join(models_folder, 'yolo-screen-obb-grayscale.pt')
 ocr_model_path = os.path.join(models_folder, 'model_float16.tflite')
 screen_quality_classifier_model_path = os.path.join(models_folder, 'best_meter_clf.pt')
 
-# Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load models
 @st.cache_resource
 def load_meter_classifier(model_path):
     model = models.resnet18()
@@ -59,7 +55,6 @@ def load_ocr_interpreter(model_path):
 def load_screen_quality_classifier(model_path):
     return YOLO(model_path)
 
-# Transformations
 common_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -74,7 +69,6 @@ screen_clf_transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# OCR preparation
 def prepare_input(image_path):
     input_data = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if input_data is None:
@@ -100,7 +94,6 @@ def order_points(pts):
     rect[1], rect[3] = pts[np.argmin(diff)], pts[np.argmax(diff)]
     return rect
 
-# Image processing
 def crop_image(image, box):
     pts = order_points(box.astype(np.float32))
     widthA, widthB = np.linalg.norm(pts[2] - pts[3]), np.linalg.norm(pts[1] - pts[0])
@@ -126,7 +119,6 @@ def perform_yolo_detection(image, yolo_model):
             return boxes[max_conf_idx].cpu().numpy().reshape((4, 2)), confs[max_conf_idx].cpu().item()
     return None, None
 
-# Generate PDF
 def generate_pdf(prev_reading, curr_reading, usage, bill_amount, images, cropped_images):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -136,11 +128,8 @@ def generate_pdf(prev_reading, curr_reading, usage, bill_amount, images, cropped
     center_style = ParagraphStyle(name='center', alignment=TA_CENTER, fontSize=18)
     normal_text = ParagraphStyle(name='normal_text', fontSize=12)
 
-    # Add title
     elements.append(Paragraph("Electricity Bill", center_style))
     elements.append(Spacer(1, 24))
-
-    # Display readings and bill details
     elements.append(Paragraph(f"Previous Reading: {prev_reading} kWh", normal_text))
     elements.append(Paragraph(f"Current Reading: {curr_reading} kWh", normal_text))
     elements.append(Paragraph(f"Units Consumed: {usage} kWh", normal_text))
@@ -151,7 +140,6 @@ def generate_pdf(prev_reading, curr_reading, usage, bill_amount, images, cropped
     buffer.close()
     return pdf
 
-# Streamlit app
 def main():
     st.title("Meter OCR App")
     meter_classifier = load_meter_classifier(meter_classifier_model_path)
@@ -165,9 +153,6 @@ def main():
     if uploaded_prev and uploaded_curr:
         prev_image = Image.open(uploaded_prev).convert('RGB')
         curr_image = Image.open(uploaded_curr).convert('RGB')
-
-        # Process image pair
-        # Add logic to handle classification, detection, OCR, and PDF generation here
 
 if __name__ == '__main__':
     main()

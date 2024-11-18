@@ -447,7 +447,7 @@ def main():
     st.header("Load Sample Image Pairs or Upload Your Own")
 
     # Dropdown menu for selecting mode
-    mode = st.selectbox("Select Mode", ["Upload Your Own Images", "Explore Sample Images"])
+    mode = st.selectbox("Select Mode", ["Explore Sample Images", "Upload Your Own Images"])
 
     if mode == "Explore Sample Images":
         # Button to load sample pairs

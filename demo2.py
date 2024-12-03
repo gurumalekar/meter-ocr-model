@@ -60,21 +60,12 @@ def load_screen_quality_classifier(model_path):
         raise
     return model
 
-
 # Define transformations for the classifiers
 common_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])
-])
-
-screen_clf_transform = transforms.Compose([
-    transforms.Resize((288, 896)),
-    transforms.Grayscale(num_output_channels=1),
-    transforms.ToTensor(),
-    transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
 def prepare_input(image_path):
@@ -114,7 +105,7 @@ def perform_classification(image, model, transform, class_names):
         predicted_class = class_names[prediction.item()]
     return predicted_class
 
-def perform_yolo_detection(image, yolo_model, device='cpu'):
+def perform_yolo_detection(image, yolo_model):
     grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     grayscale_image = cv2.merge([grayscale_image] * 3)
     results = yolo_model(grayscale_image)
@@ -166,15 +157,9 @@ def perform_ocr(cropped_image, ocr_interpreter):
     try:
         ocr_output = predict_ocr(temp_path, ocr_interpreter)
         text = "".join([alphabet[int(index)] for index in ocr_output[0] if int(index) not in [blank_index, -1]])
-        modified_text = ""
-        for char in text:
-            if char == "a":
-                modified_text += "."
-            else:
-                modified_text += char
+        modified_text = text.replace('a', '.')
     except Exception as e:
         st.error(f"OCR failed: {e}")
-        text = ""
         modified_text = ""
     finally:
         if os.path.exists(temp_path):
@@ -220,12 +205,12 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
                 # Draw bounding box on the image
                 image_with_box = image_np.copy()
                 image_with_box = draw_bounding_box(image_with_box, box)
-                st.image(image_with_box, caption='Image with Bounding Box', width=600)
+                st.image(image_with_box, caption='Image with Bounding Box', use_column_width=True)
 
                 # Crop the detected area
                 cropped_image = crop_image(image_np, box)
 
-                st.image(cropped_image, caption='Cropped Meter Screen', width=600)
+                st.image(cropped_image, caption='Cropped Meter Screen', width=400)
 
                 # Screen Quality Classification
                 class_names_quality = ['ok', 'ng']
@@ -252,35 +237,27 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
     except Exception as e:
         st.error(f"An error occurred while processing the image: {e}")
 
-    return image, cropped_image
+    return image
 
 # Streamlit App
 def main():
-    st.set_page_config(page_title="Meter OCR App")
+    st.set_page_config(page_title="Meter OCR App", layout="wide")
     import base64
 
     # Initialize session state for processing
     if 'processing' not in st.session_state:
         st.session_state['processing'] = False
 
-    # Function to load and encode image
-    def load_image_as_base64(image_path):
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode()
-
     # Check if company_logo.png exists
     if os.path.exists("company_logo.png"):
-        logo_base64 = load_image_as_base64("company_logo.png")
-        logo_html = f"""
-            <div style="display: flex; align-items: center;">
-                <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 20px;">
-                <div>
-                    <h1 style="margin-bottom: 5px;">AI-Powered Meter Display Interpretation System</h1>
-                    <h3 style="margin-top: 0;">HackAP Hackathon: Power Distribution - Problem Statement 5</h3>
-                </div>
-            </div>
-        """
-        st.markdown(logo_html, unsafe_allow_html=True)
+        # Use Streamlit columns to layout the logo and titles
+        logo_col, title_col = st.columns([1, 5])
+        with logo_col:
+            logo_image = Image.open("company_logo.png")
+            st.image(logo_image, width=150)
+        with title_col:
+            st.markdown("<h1 style='margin-bottom: 5px;'>AI-Powered Meter Display Interpretation System</h1>", unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-top: 0;'>HackAP Hackathon: Power Distribution - Problem Statement 5</h3>", unsafe_allow_html=True)
     else:
         st.title("AI-Powered Meter Display Interpretation System")
         st.subheader("HackAP Hackathon: Power Distribution - Problem Statement 5")
@@ -307,29 +284,33 @@ def main():
             ("Sample Image 3", "a3.jpg")
         ]
 
-        for idx, (label, img) in enumerate(sample_images):
-            sample_image_path = os.path.join(sample_pairs_folder, img)
-            if os.path.exists(sample_image_path):
-                if st.button(label):
-                    # Set processing state
-                    st.session_state['processing'] = True
+        # Display buttons in columns
+        button_cols = st.columns(len(sample_images))
 
-                    # Load image
-                    image = Image.open(sample_image_path).convert('RGB')
+        for idx, (col, (label, img)) in enumerate(zip(button_cols, sample_images)):
+            with col:
+                sample_image_path = os.path.join(sample_pairs_folder, img)
+                if os.path.exists(sample_image_path):
+                    if st.button(label):
+                        # Set processing state
+                        st.session_state['processing'] = True
 
-                    # Process image
-                    uploaded_image, cropped_image = process_image(
-                        image=image,
-                        meter_classifier=meter_classifier,
-                        yolo_model=yolo_model,
-                        ocr_interpreter=ocr_interpreter,
-                        screen_quality_classifier=screen_quality_classifier
-                    )
+                        # Load image
+                        image = Image.open(sample_image_path).convert('RGB')
 
-                    # Reset processing state
-                    st.session_state['processing'] = False
-            else:
-                st.error("Sample image not found in the 'sample_pairs' folder.")
+                        # Process image
+                        process_image(
+                            image=image,
+                            meter_classifier=meter_classifier,
+                            yolo_model=yolo_model,
+                            ocr_interpreter=ocr_interpreter,
+                            screen_quality_classifier=screen_quality_classifier
+                        )
+
+                        # Reset processing state
+                        st.session_state['processing'] = False
+                else:
+                    st.error("Sample image not found in the 'sample_pairs' folder.")
 
     elif mode == "Upload Your Own Image":
         st.subheader("Upload Your Image")
@@ -349,7 +330,7 @@ def main():
                 image = Image.open(uploaded_image_file).convert('RGB')
 
                 # Process image
-                uploaded_image, cropped_image = process_image(
+                process_image(
                     image=image,
                     meter_classifier=meter_classifier,
                     yolo_model=yolo_model,

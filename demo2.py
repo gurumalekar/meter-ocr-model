@@ -181,7 +181,7 @@ def perform_ocr(cropped_image, ocr_interpreter):
             os.remove(temp_path)
     return modified_text
 
-def draw_bounding_box(image, box, color=(255, 0, 0), thickness=22):
+def draw_bounding_box(image, box, color=(255, 0, 0), thickness=2):
     box = box.astype(int)
     for i in range(4):
         pt1 = tuple(box[i])
@@ -220,12 +220,12 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
                 # Draw bounding box on the image
                 image_with_box = image_np.copy()
                 image_with_box = draw_bounding_box(image_with_box, box)
-                st.image(image_with_box, caption='Image with Bounding Box', width=400)
+                st.image(image_with_box, caption='Image with Bounding Box', width=600)
 
                 # Crop the detected area
                 cropped_image = crop_image(image_np, box)
 
-                st.image(cropped_image, caption='Cropped Meter Screen', width=400)
+                st.image(cropped_image, caption='Cropped Meter Screen', width=600)
 
                 # Screen Quality Classification
                 class_names_quality = ['ok', 'ng']
@@ -273,10 +273,10 @@ def main():
         logo_base64 = load_image_as_base64("company_logo.png")
         logo_html = f"""
             <div style="display: flex; align-items: center;">
-                <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 50px;">
+                <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 20px;">
                 <div>
-                    <h1>AI-Powered Meter Display Interpretation System</h1>
-                    <h3>HackAP Hackathon: Power Distribution - Problem Statement 5</h3>
+                    <h1 style="margin-bottom: 5px;">AI-Powered Meter Display Interpretation System</h1>
+                    <h3 style="margin-top: 0;">HackAP Hackathon: Power Distribution - Problem Statement 5</h3>
                 </div>
             </div>
         """
@@ -307,36 +307,29 @@ def main():
             ("Sample Image 3", "a3.jpg")
         ]
 
-        sample_buttons = st.columns(len(sample_images))
-
         for idx, (label, img) in enumerate(sample_images):
-            with sample_buttons[idx]:
-                # Disable button if processing
-                if st.session_state['processing']:
-                    st.button(label, disabled=True)
-                else:
-                    if st.button(label):
-                        sample_image_path = os.path.join(sample_pairs_folder, img)
-                        if os.path.exists(sample_image_path):
-                            # Set processing state
-                            st.session_state['processing'] = True
+            sample_image_path = os.path.join(sample_pairs_folder, img)
+            if os.path.exists(sample_image_path):
+                if st.button(label):
+                    # Set processing state
+                    st.session_state['processing'] = True
 
-                            # Load image
-                            image = Image.open(sample_image_path).convert('RGB')
+                    # Load image
+                    image = Image.open(sample_image_path).convert('RGB')
 
-                            # Process image
-                            uploaded_image, cropped_image = process_image(
-                                image=image,
-                                meter_classifier=meter_classifier,
-                                yolo_model=yolo_model,
-                                ocr_interpreter=ocr_interpreter,
-                                screen_quality_classifier=screen_quality_classifier
-                            )
+                    # Process image
+                    uploaded_image, cropped_image = process_image(
+                        image=image,
+                        meter_classifier=meter_classifier,
+                        yolo_model=yolo_model,
+                        ocr_interpreter=ocr_interpreter,
+                        screen_quality_classifier=screen_quality_classifier
+                    )
 
-                            # Reset processing state
-                            st.session_state['processing'] = False
-                        else:
-                            st.error("Sample image not found in the 'sample_pairs' folder.")
+                    # Reset processing state
+                    st.session_state['processing'] = False
+            else:
+                st.error("Sample image not found in the 'sample_pairs' folder.")
 
     elif mode == "Upload Your Own Image":
         st.subheader("Upload Your Image")
@@ -348,14 +341,7 @@ def main():
         )
 
         if uploaded_image_file:
-            # Disable upload button if processing
-            if not st.session_state['processing']:
-                process = st.button("Process Uploaded Image")
-            else:
-                st.button("Process Uploaded Image", disabled=True)
-                process = False
-
-            if process:
+            if st.button("Process Uploaded Image"):
                 # Set processing state
                 st.session_state['processing'] = True
 

@@ -199,9 +199,6 @@ def perform_yolo_classification(crop, model):
     return "ok" if ok_score > ng_score else "ng"
 
 def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_quality_classifier):
-    # Display the image
-    st.image(image, caption='Uploaded Image', use_column_width=True)
-
     try:
         image_np = np.array(image)
 
@@ -223,12 +220,12 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
                 # Draw bounding box on the image
                 image_with_box = image_np.copy()
                 image_with_box = draw_bounding_box(image_with_box, box)
-                st.image(image_with_box, caption='Image with Bounding Box', use_column_width=True)
+                st.image(image_with_box, caption='Image with Bounding Box', width=400)
 
                 # Crop the detected area
                 cropped_image = crop_image(image_np, box)
 
-                st.image(cropped_image, caption='Cropped Meter Screen', use_column_width=True)
+                st.image(cropped_image, caption='Cropped Meter Screen', width=400)
 
                 # Screen Quality Classification
                 class_names_quality = ['ok', 'ng']
@@ -259,7 +256,7 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
 
 # Streamlit App
 def main():
-    st.set_page_config(page_title="Meter OCR App", layout="wide")
+    st.set_page_config(page_title="Meter OCR App")
     import base64
 
     # Initialize session state for processing

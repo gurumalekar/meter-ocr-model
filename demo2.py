@@ -15,7 +15,7 @@ alphabet = string.digits + string.ascii_lowercase + '.'
 blank_index = len(alphabet)
 
 # Define paths
-models_folder = '../model'  # Ensure this folder contains the required models
+models_folder = 'model'  # Ensure this folder contains the required models
 
 # Model paths
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')

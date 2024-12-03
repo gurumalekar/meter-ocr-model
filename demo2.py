@@ -21,7 +21,7 @@ models_folder = 'model'  # Ensure this folder contains the required models
 meter_classifier_model_path = os.path.join(models_folder, 'meter_classifier.pth')
 yolo_model_path = os.path.join(models_folder, 'yolo-screen-obb-grayscale.pt')
 ocr_model_path = os.path.join(models_folder, 'model_float16.tflite')
-screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale_cnn.pth')  # New classifier
+screen_quality_classifier_model_path = os.path.join(models_folder, 'screen_classifier_grayscale.pth')  # New classifier
 
 # CNN Model Definition
 class CNNBinaryClassifier(nn.Module):
@@ -291,32 +291,32 @@ def draw_bounding_box(image, box, color=(255, 0, 0), thickness=30):
 # Streamlit App
 def main():
     st.set_page_config(page_title="Meter OCR App", layout="wide")
-
     import base64
+
+    # Initialize session state for processing
+    if 'processing' not in st.session_state:
+        st.session_state['processing'] = False
 
     # Function to load and encode image
     def load_image_as_base64(image_path):
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
 
-    # Load and encode the company logo
-    logo_base64 = load_image_as_base64("company_logo.png")
-
-    # Display the logo and headings in a single line
-    st.markdown(
-        f"""
-        <div style="display: flex; align-items: center; justify-content: left;">
-            <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 80px;">
-            <div style="text-align: center; color: white;">
-                <h1>AI-Powered Meter Display Interpretation System</h1>
-                <h2>HackAP Hackathon: Power Distribution</h2>
-                <h3>Problem Statement - 5</h3>
+    # Check if company_logo.png exists
+    if os.path.exists("company_logo.png"):
+        logo_base64 = load_image_as_base64("company_logo.png")
+        logo_html = f"""
+            <div style="display: flex; align-items: center;">
+                <img src="data:image/png;base64,{logo_base64}" width="150" style="margin-right: 50px;">
+                <div>
+                    <h1>AI-Powered Meter Display Interpretation System</h1>
+                    <h3>HackAP Hackathon: Power Distribution - Problem Statement 5</h3>
+                </div>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
+        """
+        st.markdown(logo_html, unsafe_allow_html=True)
+    else:
+        st.title("AI-Powered Meter Display Interpretation System")
     # Load models
     with st.spinner("Loading models..."):
         meter_classifier = load_meter_classifier(meter_classifier_model_path)

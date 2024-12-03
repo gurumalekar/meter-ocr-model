@@ -205,7 +205,7 @@ def process_image(image, meter_classifier, yolo_model, ocr_interpreter, screen_q
                 # Draw bounding box on the image
                 image_with_box = image_np.copy()
                 image_with_box = draw_bounding_box(image_with_box, box)
-                st.image(image_with_box, caption='Image with Bounding Box', width=800)
+                st.image(image_with_box, caption='Image with Bounding Box', height=800)
 
                 # Crop the detected area
                 cropped_image = crop_image(image_np, box)
